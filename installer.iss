@@ -4,12 +4,12 @@
 ;
 ; Устанавливает приложение как полноценную программу в Program Files.
 ; Структура после установки:
-;   %ProgramFiles%\MyVPN\
-;     MyVPN.exe          <- PyInstaller onedir launcher (переименован)
-;     MyVPN_GUI\         <- все файлы PyInstaller onedir
-;     myvpn.exe          <- Go-бинарь (helper-режим)
-;     wintun.dll         <- обязательно рядом с myvpn.exe
-;     xray.exe           <- (опционально, для sub-режима)
+;   %ProgramFiles%\Intourist VPN\
+;     intourist_vpn_gui.exe       <- PyInstaller onedir launcher
+;     IntouristVPN_GUI\           <- все файлы PyInstaller onedir
+;     intourist_vpn.exe           <- Go-бинарь (helper-режим)
+;     wintun.dll                  <- обязательно рядом с intourist_vpn.exe
+;     xray.exe                    <- (опционально, для sub-режима)
 ;     geoip.dat
 ;     geosite.dat
 ;     config.json
@@ -17,38 +17,39 @@
 ;       helper.exe
 ;       tun2socks.exe
 ;       helper.config.yaml
-;     logs\              <- создаётся при первом запуске
+;     intourist_vps_premium_ui\   <- веб-интерфейс
+;     logs\                       <- создаётся при первом запуске
 ;     configs\
 ;     temp\
-;     uninstall.exe      <- автоматически создаётся Inno Setup
+;     uninstall.exe               <- автоматически создаётся Inno Setup
 ; =============================================================================
 
-#define MyAppName      "MyVPN"
-#define MyAppVersion   "2.2.0"
-#define MyAppPublisher "Intourist VPN"
-#define MyAppExeName   "MyVPN_GUI.exe"
-#define MyAppURL       "https://t.me/blokirovki_ru"
+#define IntouristAppName      "Intourist VPN"
+#define IntouristAppVersion   "2.2.0"
+#define IntouristAppPublisher "Intourist"
+#define IntouristAppExeName   "intourist_vpn_gui.exe"
+#define IntouristAppURL       "https://t.me/blokirovki_ru"
 
 [Setup]
 ; --- Идентификация ---
 AppId={{8F3A2D1B-4E6C-4F7A-9B2E-1C3D5E7F9A0B}
-AppName={#MyAppName}
-AppVersion={#MyAppVersion}
-AppPublisher={#MyAppPublisher}
-AppPublisherURL={#MyAppURL}
-AppSupportURL={#MyAppURL}
-AppUpdatesURL={#MyAppURL}
+AppName={#IntouristAppName}
+AppVersion={#IntouristAppVersion}
+AppPublisher={#IntouristAppPublisher}
+AppPublisherURL={#IntouristAppURL}
+AppSupportURL={#IntouristAppURL}
+AppUpdatesURL={#IntouristAppURL}
 
 ; --- Директория установки ---
 ; autopf = Program Files или Program Files (x86) в зависимости от архитектуры
-DefaultDirName={autopf}\{#MyAppName}
-DefaultGroupName={#MyAppName}
+DefaultDirName={autopf}\{#IntouristAppName}
+DefaultGroupName={#IntouristAppName}
 AllowNoIcons=yes
 
 ; --- Внешний вид ---
 SetupIconFile=icon.ico
-UninstallDisplayIcon={app}\{#MyAppExeName}
-UninstallDisplayName={#MyAppName} {#MyAppVersion}
+UninstallDisplayIcon={app}\{#IntouristAppExeName}
+UninstallDisplayName={#IntouristAppName} {#IntouristAppVersion}
 
 ; --- Сжатие ---
 Compression=lzma2/ultra64
@@ -62,7 +63,7 @@ PrivilegesRequiredOverridesAllowed=dialog
 
 ; --- Вывод ---
 OutputDir=installer_dist
-OutputBaseFilename=MyVPN_Setup_{#MyAppVersion}
+OutputBaseFilename=IntouristVPN_Setup_{#IntouristAppVersion}
 
 ; --- Архитектура ---
 ; Только x64 (wintun.dll — 64-битная)
@@ -100,18 +101,18 @@ Name: "{app}\bin"
 
 [Files]
 ; =============================================================================
-; PyInstaller onedir output (dist\MyVPN_GUI\)
-; Копируем ВСЮ папку, включая все Qt-библиотеки
+; PyInstaller onedir output (dist\IntouristVPN_GUI\)
+; Копируем ВСЮ папку, включая все Qt-библиотеки и веб-интерфейс
 ; =============================================================================
-Source: "dist\MyVPN_GUI\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "dist\IntouristVPN_GUI\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; =============================================================================
-; Go-бинарь myvpn.exe (основной VPN-движок, helper-режим)
+; Go-бинарь intourist_vpn.exe (основной VPN-движок, helper-режим)
 ; =============================================================================
-Source: "myvpn.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "intourist_vpn.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 ; =============================================================================
-; wintun.dll — КРИТИЧНО: должна лежать рядом с myvpn.exe и MyVPN_GUI.exe
+; wintun.dll — КРИТИЧНО: должна лежать рядом с intourist_vpn.exe и intourist_vpn_gui.exe
 ; =============================================================================
 Source: "wintun.dll"; DestDir: "{app}"; Flags: ignoreversion
 
@@ -143,26 +144,26 @@ Source: "icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 ; Меню «Пуск»
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\icon.ico"; Comment: "Intourist VPN Client"
-Name: "{group}\Удалить {#MyAppName}"; Filename: "{uninstallexe}"
+Name: "{group}\{#IntouristAppName}"; Filename: "{app}\{#IntouristAppExeName}"; IconFilename: "{app}\icon.ico"; Comment: "Intourist VPN Client"
+Name: "{group}\Удалить {#IntouristAppName}"; Filename: "{uninstallexe}"
 
 ; Рабочий стол (по выбору пользователя)
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\icon.ico"; Tasks: desktopicon; Comment: "Intourist VPN Client"
+Name: "{autodesktop}\{#IntouristAppName}"; Filename: "{app}\{#IntouristAppExeName}"; IconFilename: "{app}\icon.ico"; Tasks: desktopicon; Comment: "Intourist VPN Client"
 
 ; Панель быстрого запуска (Windows XP/Vista)
-Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: quicklaunchicon
+Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#IntouristAppName}"; Filename: "{app}\{#IntouristAppExeName}"; Tasks: quicklaunchicon
 
 [Run]
 ; Запустить приложение после установки (опционально)
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent runascurrentuser
+Filename: "{app}\{#IntouristAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(IntouristAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent runascurrentuser
 
 [UninstallRun]
 ; Завершаем процессы перед удалением
-Filename: "{sys}\taskkill.exe"; Parameters: "/f /im MyVPN_GUI.exe"; Flags: runhidden skipifdoesntexist
-Filename: "{sys}\taskkill.exe"; Parameters: "/f /im myvpn.exe";     Flags: runhidden skipifdoesntexist
-Filename: "{sys}\taskkill.exe"; Parameters: "/f /im helper.exe";    Flags: runhidden skipifdoesntexist
-Filename: "{sys}\taskkill.exe"; Parameters: "/f /im tun2socks.exe"; Flags: runhidden skipifdoesntexist
-Filename: "{sys}\taskkill.exe"; Parameters: "/f /im xray.exe";      Flags: runhidden skipifdoesntexist
+Filename: "{sys}\taskkill.exe"; Parameters: "/f /im intourist_vpn_gui.exe"; Flags: runhidden skipifdoesntexist
+Filename: "{sys}\taskkill.exe"; Parameters: "/f /im intourist_vpn.exe";     Flags: runhidden skipifdoesntexist
+Filename: "{sys}\taskkill.exe"; Parameters: "/f /im helper.exe";           Flags: runhidden skipifdoesntexist
+Filename: "{sys}\taskkill.exe"; Parameters: "/f /im tun2socks.exe";        Flags: runhidden skipifdoesntexist
+Filename: "{sys}\taskkill.exe"; Parameters: "/f /im xray.exe";             Flags: runhidden skipifdoesntexist
 
 [UninstallDelete]
 ; Удаляем рабочие директории, созданные во время работы
@@ -174,8 +175,8 @@ Type: filesandordirs; Name: "{app}\temp"
 
 [Registry]
 ; Регистрируем приложение в «Установка и удаление программ»
-Root: HKLM; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey
-Root: HKLM; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: string; ValueName: "Version"; ValueData: "{#MyAppVersion}"
+Root: HKLM; Subkey: "Software\{#IntouristAppPublisher}\{#IntouristAppName}"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey
+Root: HKLM; Subkey: "Software\{#IntouristAppPublisher}\{#IntouristAppName}"; ValueType: string; ValueName: "Version"; ValueData: "{#IntouristAppVersion}"
 
 [Code]
 // Проверяем наличие предыдущей версии и предлагаем удалить её
@@ -183,7 +184,7 @@ function InitializeSetup(): Boolean;
 var
   UninstPath: string;
   UninstallString: string;
-  ResultCode: Integer; // 1. Объявляем переменную для кода ответа
+  ResultCode: Integer;
 begin
   Result := True;
   
@@ -191,10 +192,9 @@ begin
   UninstPath := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{8F3A2D1B-4E6C-4F7A-9B2E-1C3D5E7F9A0B}_is1';
   if RegQueryStringValue(HKLM, UninstPath, 'UninstallString', UninstallString) then
   begin
-    if MsgBox('Обнаружена предыдущая версия MyVPN. Удалить её перед установкой?',
+    if MsgBox('Обнаружена предыдущая версия Intourist VPN. Удалить её перед установкой?',
               mbConfirmation, MB_YESNO) = IDYES then
     begin
-      // 2. Передаем ResultCode вместо 0 последним параметром
       Exec(RemoveQuotes(UninstallString), '/SILENT /NORESTART', '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
     end;
   end;
