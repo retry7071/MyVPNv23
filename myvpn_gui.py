@@ -49,6 +49,9 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEngineSettings
+from PyQt6.QtWebChannel import QWebChannel
+
+from vpn_bridge_api import VPNBridgeAPI
 
 def _ensure_admin():
     try:
@@ -103,61 +106,21 @@ QMainWindow, QWidget {{
     font-family: 'Segoe UI', 'Inter', sans-serif;
     font-size: 13px;
 }}
-QFrame#card {{
-    background-color: {C_BG1};
-    border-radius: {RADIUS}px;
-    padding: 4px;
-}}
-QLineEdit {{
-    background-color: {C_BG2};
-    color: {C_TEXT};
-    border: 1.5px solid {C_BG2};
-    border-radius: {RADIUS}px;
-    padding: 6px 12px;
-    font-size: 13px;
-}}
-QLineEdit:focus {{
-    border-color: {C_ORANGE};
-}}
-QPushButton#connect {{
-    background-color: {C_ORANGE};
-    color: #fff;
-    border: none;
-    border-radius: {RADIUS}px;
-    padding: 8px 24px;
-    font-weight: bold;
-    font-size: 15px;
-    text-align: left;
-}}
-QPushButton#connect:hover {{ background-color: #ff9d6b; }}
-QPushButton#connect:disabled {{ background-color: #5a3a26; color: #888; }}
-QPushButton#disconnect {{
-    background-color: {C_BG2};
-    color: {C_TEXT};
-    border: 1.5px solid #444a55;
-    border-radius: {RADIUS}px;
-    padding: 8px 24px;
-    font-weight: bold;
-    font-size: 15px;
-    text-align: left;
-}}
-QPushButton#disconnect:hover {{ background-color: #353b44; }}
-QPushButton#disconnect:disabled {{ background-color: {C_BG2}; color: #555; border-color: #333; }}
 """
 
 LOGO_B64 = "iVBORw0KGgoAAAANSUhEUgAAAYAAAAGACAYAAACkx7W/AAAQAElEQVR4Aey9B6AcR5W2/VR1mHSzcrYk27IcJOeIEw7YYGySCSYaMDmzLLAs4CWnJWNyDguYJYMxJtg4Z8tBVs7SlW4Ok6e7639rJJP+3W+/b9eBxbfVZ6q6usKpU1XvOXVq7sg[...]"
 
 COUNTRY_FLAGS = {
-    "ru": "RU", "us": "US", "de": "DE", "nl": "NL", "fi": "FI",
-    "fr": "FR", "gb": "GB", "jp": "JP", "sg": "SG", "ua": "UA",
-    "pl": "PL", "se": "SE", "tr": "TR", "ir": "IR",
+    "ru": "🇷🇺", "us": "🇺🇸", "de": "🇩🇪", "nl": "🇳🇱", "fi": "🇫🇮",
+    "fr": "🇫🇷", "gb": "🇬🇧", "jp": "🇯🇵", "sg": "🇸🇬", "ua": "🇺🇦",
+    "pl": "🇵🇱", "se": "🇸🇪", "tr": "🇹🇷", "ir": "🇮🇷", "bg": "🇧🇬",
 }
 
 
 def _country(host: str) -> str:
     for cc in COUNTRY_FLAGS:
         if cc in host.lower():
-            return COUNTRY_FLAGS[cc]
+            return cc.upper()
     return ""
 
 
@@ -173,6 +136,8 @@ def parse_uri(uri: str) -> Optional[dict]:
                 "protocol": "VLESS", "transport": qs.get("type", "tcp"),
                 "cred": p.username, "params": qs,
                 "country": _country(p.hostname or ""),
+                "location": p.hostname or "",
+                "ping": None,
                 "kind": "sub",
             }
         if uri.startswith("trojan://"):
@@ -184,6 +149,8 @@ def parse_uri(uri: str) -> Optional[dict]:
                 "protocol": "Trojan", "transport": qs.get("type", "tcp"),
                 "cred": p.username, "params": qs,
                 "country": _country(p.hostname or ""),
+                "location": p.hostname or "",
+                "ping": None,
                 "kind": "sub",
             }
         if uri.startswith("ss://"):
@@ -199,6 +166,8 @@ def parse_uri(uri: str) -> Optional[dict]:
                 "protocol": "Shadowsocks", "transport": method,
                 "cred": password, "params": {},
                 "country": _country(p.hostname or ""),
+                "location": p.hostname or "",
+                "ping": None,
                 "kind": "sub",
             }
         if uri.startswith("vmess://"):
@@ -210,6 +179,8 @@ def parse_uri(uri: str) -> Optional[dict]:
                 "protocol": "VMess", "transport": d.get("net", "tcp"),
                 "cred": d.get("id", ""), "params": d,
                 "country": _country(d.get("add", "")),
+                "location": d.get("add", ""),
+                "ping": None,
                 "kind": "sub",
             }
     except Exception:
@@ -330,186 +301,6 @@ class VpnWorker(QThread):
                     pass
 
 
-COLS = ["Страна", "Сервер", "Протокол", "Транспорт", "Пинг"]
-
-HELPER_SERVER = {
-    "name":      "Обход белых списков",
-    "host":      "local",
-    "port":      0,
-    "protocol":  "Helper",
-    "transport": "WebSocket",
-    "country":   "",
-    "kind":      "helper",
-    "params":    {},
-}
-
-
-class ServerModel(QAbstractTableModel):
-    def __init__(self):
-        super().__init__()
-        self._rows: list[dict] = [HELPER_SERVER]
-        self._pings: dict[int, int] = {}
-        self._best: int = -1
-
-    def load(self, servers: list[dict]):
-        self.beginResetModel()
-        self._rows  = [HELPER_SERVER] + servers
-        self._pings = {}
-        self._best  = -1
-        self.endResetModel()
-        self._recalc_best()
-
-    def set_ping(self, row: int, ms: int):
-        real = row + 1
-        self._pings[real] = ms
-        self._recalc_best()
-        self.dataChanged.emit(
-            self.index(real, 0), self.index(real, len(COLS) - 1)
-        )
-
-    def _recalc_best(self):
-        valid = {r: ms for r, ms in self._pings.items() if ms >= 0}
-        if valid:
-            self._best = min(valid, key=valid.get)
-
-    def rowCount(self, parent=QModelIndex()):
-        return len(self._rows)
-
-    def columnCount(self, parent=QModelIndex()):
-        return len(COLS)
-
-    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
-        if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
-            return COLS[section]
-
-    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
-        if not index.isValid():
-            return None
-        row, col = index.row(), index.column()
-        srv  = self._rows[row]
-        ping = self._pings.get(row)
-        is_helper = srv.get("kind") == "helper"
-
-        if role == Qt.ItemDataRole.DisplayRole:
-            if col == 0:
-                if is_helper:
-                    return "LOCAL"
-                return srv.get("country", "")
-            if col == 1:
-                suffix = " *" if row == self._best else ""
-                return f"{srv['name']}{suffix}"
-            if col == 2:
-                return srv.get("protocol", "")
-            if col == 3:
-                return srv.get("transport", "")
-            if col == 4:
-                if is_helper:
-                    return "—"
-                if ping is None:
-                    return "..."
-                if ping < 0:
-                    return "недост."
-                return f"{ping} ms"
-
-        if role == Qt.ItemDataRole.ForegroundRole:
-            if is_helper:
-                return QColor(C_BLUE)
-            if col == 4:
-                if ping is None: return QColor(C_MUTED)
-                if ping < 0:     return QColor(C_RED)
-                if ping < 150:   return QColor(C_GREEN)
-                if ping < 400:   return QColor(C_YELLOW)
-                return QColor(C_RED)
-            if col == 1 and row == self._best:
-                return QColor(C_ORANGE)
-
-        if role == Qt.ItemDataRole.TextAlignmentRole:
-            if col in (0, 4):
-                return int(Qt.AlignmentFlag.AlignCenter)
-
-        if role == Qt.ItemDataRole.FontRole:
-            if is_helper:
-                f = QFont()
-                f.setBold(True)
-                return f
-
-        return None
-
-    def server(self, row: int) -> dict:
-        return self._rows[row]
-
-
-class LogConsole(QTextEdit):
-    _COLORS = {
-        "error": C_RED,
-        "err":   C_RED,
-        "warn":  C_YELLOW,
-        "info":  C_GREEN,
-        "ok":    C_GREEN,
-    }
-
-    LOG_LEVEL_FULL = 0
-    LOG_LEVEL_NORMAL = 1
-    LOG_LEVEL_IMPORTANT = 2
-
-    def __init__(self):
-        super().__init__()
-        self.setReadOnly(True)
-        self._log_level = self.LOG_LEVEL_FULL
-        self._all_lines: list[tuple[str, str]] = []
-
-    def set_log_level(self, level: int):
-        self._log_level = level
-        self._refresh_display()
-
-    def _should_show(self, line: str) -> bool:
-        lower = line.lower()
-        
-        if self._log_level == self.LOG_LEVEL_FULL:
-            return True
-        
-        if self._log_level == self.LOG_LEVEL_NORMAL:
-            if "[debug]" in lower:
-                return False
-            return True
-        
-        if self._log_level == self.LOG_LEVEL_IMPORTANT:
-            if any(x in lower for x in ["[info]", "[warn]", "[error]", "[ok]"]):
-                return True
-            return False
-        
-        return True
-
-    def append_line(self, line: str):
-        lower = line.lower()
-        color = C_TEXT
-        for kw, clr in self._COLORS.items():
-            if kw in lower:
-                color = clr
-                break
-        
-        self._all_lines.append((line, color))
-        
-        if self._should_show(line):
-            self._add_to_display(line, color)
-
-    def _add_to_display(self, line: str, color: str):
-        escaped = (
-            line.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-        )
-        self.append(f'<span style="color:{color};">{escaped}</span>')
-        sb = self.verticalScrollBar()
-        sb.setValue(sb.maximum())
-
-    def _refresh_display(self):
-        self.clear()
-        for line, color in self._all_lines:
-            if self._should_show(line):
-                self._add_to_display(line, color)
-
-
 class MainWindow(QMainWindow):
     BASE    =   _resolve_base()
     EXE_DIR = _exe_dir()
@@ -527,8 +318,9 @@ class MainWindow(QMainWindow):
         self._conn_mode: Optional[str] = None
         self._original_dns: dict[str, list[str]] = {}
         self._dns_adapters: list[str] = []
-
-        self._model = ServerModel()
+        self._servers: list[dict] = []
+        self._current_server: Optional[dict] = None
+        self._connection_time = 0
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -542,6 +334,19 @@ class MainWindow(QMainWindow):
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
         
+        # Setup WebChannel
+        self._channel = QWebChannel()
+        self._bridge_api = VPNBridgeAPI()
+        
+        # Connect signals
+        self._bridge_api.connectionRequested.connect(self._on_connect_requested)
+        self._bridge_api.disconnectionRequested.connect(self._on_disconnect_requested)
+        self._bridge_api.serversRefreshRequested.connect(self._on_refresh_requested)
+        self._bridge_api.statusChanged.connect(self._on_status_changed)
+        
+        self._channel.registerObject("vpnApi", self._bridge_api)
+        self._web_view.page().setWebChannel(self._channel)
+        
         # Load local HTML
         ui_path = self.BASE / "intourist_vps_premium_ui" / "index.html"
         if ui_path.exists():
@@ -551,15 +356,166 @@ class MainWindow(QMainWindow):
         
         root.addWidget(self._web_view)
 
+        # Timer for connection time
+        self._timer = QTimer()
+        self._timer.timeout.connect(self._update_connection_time)
+
         self._update_status(False)
 
-    def _update_status(self, connected: bool):
+    def _on_connect_requested(self, server: dict):
+        """Handle connection request from web UI"""
+        self._current_server = server
+        self._connect_to_server(server)
+
+    def _on_disconnect_requested(self):
+        """Handle disconnection request from web UI"""
+        self._disconnect()
+
+    def _on_refresh_requested(self):
+        """Handle server refresh request from web UI"""
+        # This would reload servers from subscription
+        pass
+
+    def _on_status_changed(self, connected: bool):
+        """Handle status change"""
         self._connected = connected
-        # JavaScript injection to update status
-        status_js = f"""
-        document.querySelector('.status-card').classList.toggle('is-online', {str(connected).lower()});
+
+    def _connect_to_server(self, server: dict):
+        """Connect to a specific server"""
+        if self._connected or (self._vpn_worker and self._vpn_worker.isRunning()):
+            return
+
+        self._bridge_api.appendLog(f"[INFO] Подключение к {server.get('name')}...")
+        
+        try:
+            from config_gen import make_xray_config, write_config
+            cfg      = make_xray_config(server)
+            cfg_path = self.EXE_DIR / "config.json"
+            write_config(cfg, cfg_path)
+            self._bridge_api.appendLog(f"[INFO] Конфиг записан: {cfg_path}")
+        except ImportError:
+            self._bridge_api.appendLog("[WARN] config_gen не найден — fallback на helper.")
+            self._do_connect_helper()
+            return
+        except Exception as exc:
+            self._bridge_api.appendLog(f"[ERROR] config_gen: {exc}")
+            return
+
+        xray = self.EXE_DIR / "bin" / "xray.exe"
+        if not xray.exists():
+            xray = self.EXE_DIR / "xray.exe"
+        if not xray.exists():
+            self._bridge_api.appendLog(f"[WARN] xray.exe не найден, fallback на helper.")
+            self._do_connect_helper()
+            return
+
+        self._conn_mode = "sub"
+        self._connection_time = 0
+        self._timer.start(1000)
+        self._launch_vpn([str(xray), "run", "-c", str(cfg_path)])
+
+    def _do_connect_helper(self):
+        """Connect using helper mode"""
+        myvpn = self.EXE_DIR / "myvpn.exe"
+        if not myvpn.exists():
+            myvpn = self.BASE / "myvpn.exe"
+        if not myvpn.exists():
+            self._bridge_api.appendLog(f"[ERROR] myvpn.exe не найден")
+            return
+        
+        self._conn_mode = "helper"
+        self._connection_time = 0
+        self._timer.start(1000)
+        self._launch_vpn([str(myvpn), "--base-dir", str(self.BASE)])
+
+    def _launch_vpn(self, cmd: list[str]):
+        """Launch VPN process"""
+        if self._connected or (self._vpn_worker and self._vpn_worker.isRunning()):
+            return
+
+        self._vpn_worker = VpnWorker(cmd)
+        self._vpn_worker.log.connect(self._bridge_api.appendLog)
+        self._vpn_worker.started_ok.connect(self._on_vpn_ready)
+        self._vpn_worker.stopped.connect(self._on_vpn_stopped)
+        self._vpn_worker.start()
+
+        self._bridge_api.appendLog(f"[INFO] Запуск: {' '.join(cmd)}")
+
+    def _on_vpn_ready(self):
+        """Called when VPN is ready"""
+        self._update_status(True)
+        if self._conn_mode == "sub":
+            self._set_proxy(True)
+            self._bridge_api.appendLog("[INFO] Intourist VPN готов. Прокси включён.")
+        else:
+            self._set_proxy(False)
+            self._bridge_api.appendLog("[INFO] Intourist VPN готов (helper, полный туннель).")
+        
+        self._set_dns(True)
+
+    def _on_vpn_stopped(self):
+        """Called when VPN process stops"""
+        self._update_status(False)
+        self._set_proxy(False)
+        self._set_dns(False)
+        self._conn_mode = None
+        self._bridge_api.appendLog("[INFO] VPN-процесс завершён.")
+        self._timer.stop()
+
+    def _disconnect(self):
+        """Disconnect from VPN"""
+        if self._vpn_worker and self._vpn_worker.isRunning():
+            self._bridge_api.appendLog("[INFO] Остановка VPN-процесса...")
+            self._vpn_worker.stop()
+            if not self._vpn_worker.wait(5000):
+                self._bridge_api.appendLog("[WARN] VPN-процесс не завершился в срок.")
+        
+        self._set_proxy(False)
+        self._set_dns(False)
+        
+        self._conn_mode = None
+        self._update_status(False)
+        self._bridge_api.appendLog("[INFO] Отключено.")
+        self._timer.stop()
+
+    def _update_status(self, connected: bool):
+        """Update connection status in UI"""
+        self._connected = connected
+        self._bridge_api.setStatus(connected)
+        
+        # Update UI via JavaScript
+        status_text = "подключено" if connected else "отключено"
+        status_color = "#17C964" if connected else "#FF4A6A"
+        
+        js_code = f"""
+        var statusCard = document.querySelector('.status-card');
+        if (statusCard) {{
+            statusCard.classList.toggle('is-online', {str(connected).lower()});
+            var strong = statusCard.querySelector('strong');
+            if (strong) strong.textContent = '{status_text}';
+        }}
+        var connectBtn = document.querySelector('.connect');
+        var disconnectBtn = document.querySelector('.disconnect');
+        if (connectBtn) connectBtn.disabled = {str(connected).lower()};
+        if (disconnectBtn) disconnectBtn.disabled = {str(not connected).lower()};
         """
-        self._web_view.page().runJavaScript(status_js)
+        self._web_view.page().runJavaScript(js_code)
+
+    def _update_connection_time(self):
+        """Update connection time display"""
+        self._connection_time += 1
+        hours = self._connection_time // 3600
+        minutes = (self._connection_time % 3600) // 60
+        seconds = self._connection_time % 60
+        time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        
+        metrics = {
+            "time": time_str,
+            "downloaded": "0 MB",
+            "uploaded": "0 MB",
+            "dns": "1.1.1.1"
+        }
+        self._bridge_api.setMetrics(metrics)
 
     @staticmethod
     def _set_proxy(enable: bool):
@@ -591,8 +547,7 @@ class MainWindow(QMainWindow):
         try:
             if enable:
                 subprocess.run(
-                    ["netsh", "winhttp", "set", "proxy",
-                     "127.0.0.1:1080", BYPASS],
+                    ["netsh", "winhttp", "set", "proxy", "127.0.0.1:1080", BYPASS],
                     capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW
                 )
             else:
@@ -747,13 +702,6 @@ class MainWindow(QMainWindow):
                                         capture_output=True, timeout=5,
                                         creationflags=subprocess.CREATE_NO_WINDOW,
                                     )
-                            else:
-                                subprocess.run(
-                                    ["netsh", "interface", "ipv4", "set", "dnsservers",
-                                     f"name={adapter}", "source=dhcp"],
-                                    capture_output=True, timeout=5,
-                                    creationflags=subprocess.CREATE_NO_WINDOW,
-                                )
                     except Exception:
                         pass
 
@@ -773,8 +721,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         try:
-            if self._vpn_worker and self._vpn_worker.isRunning():
-                self._vpn_worker.stop()
+            self._disconnect()
         except Exception:
             pass
         finally:
@@ -783,18 +730,8 @@ class MainWindow(QMainWindow):
                     w.quit()
                 except Exception:
                     pass
+            self._timer.stop()
             event.accept()
-
-    @staticmethod
-    def _log_crash():
-        import traceback
-        try:
-            log_path = Path(os.environ.get("TEMP", ".")) / "intourist_vpn_gui_crash.log"
-            with open(log_path, "a", encoding="utf-8") as f:
-                f.write(f"--- {time.strftime('%Y-%m-%d %H:%M:%S')} ---\n")
-                f.write(traceback.format_exc() + "\n")
-        except Exception:
-            pass
 
 
 def main():
