@@ -1,10 +1,10 @@
-﻿<#
+<#
 .SYNOPSIS
     build.ps1 — Полная автоматическая сборка Intourist VPN Setup.exe
 
 .DESCRIPTION
-    1. Компилирует Go-бинарь (myvpn.exe)
-    2. Собирает PyInstaller onedir (dist\MyVPN_GUI\)
+    1. Компилирует Go-бинарь (intourist_vpn.exe)
+    2. Собирает PyInstaller onedir (dist\IntouristVPN_GUI\)
     3. Копирует все зависимости в правильные места
     4. Запускает Inno Setup → получаем Setup.exe
 
@@ -36,7 +36,7 @@ param(
 $ErrorActionPreference = "Stop"
 $Root = $PSScriptRoot
 
-# ─── Helpers ────────────────────────────────────────────────────────────────
+# ─── Helpers ───────────────────────────────────────────────────────────
 function Header($msg)  { Write-Host "`n=== $msg ===" -ForegroundColor Cyan }
 function Ok($msg)      { Write-Host "[OK] $msg"  -ForegroundColor Green }
 function Warn($msg)    { Write-Host "[!]  $msg"  -ForegroundColor Yellow }
@@ -57,18 +57,18 @@ function RequireFile($path, $hint = "") {
     }
 }
 
-# ─── Начало сборки ──────────────────────────────────────────────────────────
+# ─── Начало сборки ────────────────────────────────────────────────────
 Header "Intourist VPN Build v$Version"
 Info "Root: $Root"
 Info "Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
 
-# ─── ШАГИ СБОРКИ ────────────────────────────────────────────────────────────
+# ─── ШАГИ СБОРКИ ──────────────────────────────────────────────────────
 
-# ════════════════════════════════════════════════════════════════════════════
-# ШАГ 1: Компиляция Go → myvpn.exe
-# ════════════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════
+# ШАГ 1: Компиляция Go → intourist_vpn.exe
+# ════════════════════════════════════════════════════════════════
 if (-not $SkipGo) {
-    Header "1/4  Go Compilation → myvpn.exe"
+    Header "1/4  Go Compilation → intourist_vpn.exe"
 
     Require "go"
     $goVersion = go version
@@ -87,13 +87,13 @@ if (-not $SkipGo) {
 
         go build -v `
             -ldflags="-s -w -X main.Version=$Version" `
-            -o "$Root\myvpn.exe" `
+            -o "$Root\intourist_vpn.exe" `
             .\cmd\myvpn\
 
         if ($LASTEXITCODE -ne 0) { Fail "go build failed" }
 
-        RequireFile "$Root\myvpn.exe"
-        Ok "myvpn.exe created"
+        RequireFile "$Root\intourist_vpn.exe"
+        Ok "intourist_vpn.exe created"
     }
     finally {
         Pop-Location
@@ -101,12 +101,12 @@ if (-not $SkipGo) {
 }
 else {
     Warn "Step 1 skipped (-SkipGo)"
-    RequireFile "$Root\myvpn.exe" "Run without -SkipGo to build myvpn.exe"
+    RequireFile "$Root\intourist_vpn.exe" "Run without -SkipGo to build intourist_vpn.exe"
 }
 
-# ════════════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════
 # ШАГ 2: Проверка бинарных зависимостей в bin\
-# ════════════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════
 Header "2/4  Checking bin\ dependencies"
 
 $requiredBin = @(
@@ -150,11 +150,11 @@ if (-not $allOk) {
     Fail "One or more required files are missing. See warnings above."
 }
 
-# ════════════════════════════════════════════════════════════════════════════
-# ШАГ 3: PyInstaller onedir → dist\MyVPN_GUI\
-# ════════════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════
+# ШАГ 3: PyInstaller onedir → dist\IntouristVPN_GUI\
+# ════════════════════════════════════════════════════════════════
 if (-not $SkipPython) {
-    Header "3/4  PyInstaller → dist\MyVPN_GUI\ (onedir mode)"
+    Header "3/4  PyInstaller → dist\IntouristVPN_GUI\ (onedir mode)"
 
     Require "python"
     Require "pyinstaller"
@@ -171,16 +171,16 @@ if (-not $SkipPython) {
 
     Push-Location $Root
     try {
-        $env:MYVPN_VERSION = $Version
-        $env:MYVPN_BIN_DIR = "$Root\bin"
-        $env:MYVPN_EXE     = "$Root\myvpn.exe"
-        $env:MYVPN_ICON    = "$Root\icon.ico"
+        $env:INTOURIST_VERSION = $Version
+        $env:INTOURIST_BIN_DIR = "$Root\bin"
+        $env:INTOURIST_EXE     = "$Root\intourist_vpn.exe"
+        $env:INTOURIST_ICON    = "$Root\icon.ico"
 
         pyinstaller `
             --distpath="$Root\dist" `
             --workpath="$Root\build_pyinstaller" `
             --noconfirm `
-            "$Root\MyVPN_GUI.spec"
+            "$Root\IntouristVPN_GUI.spec"
 
         if ($LASTEXITCODE -ne 0) { Fail "PyInstaller failed" }
     }
@@ -189,28 +189,27 @@ if (-not $SkipPython) {
     }
 
     # Проверяем результат
-    $guiDir = Join-Path $Root "dist\MyVPN_GUI"
-    RequireFile $guiDir "PyInstaller должен был создать dist\MyVPN_GUI\"
-    RequireFile (Join-Path $guiDir "MyVPN_GUI.exe") "Exe не создан"
+    $guiDir = Join-Path $Root "dist\IntouristVPN_GUI"
+    RequireFile $guiDir "PyInstaller должен был создать dist\IntouristVPN_GUI\"
+    RequireFile (Join-Path $guiDir "intourist_vpn_gui.exe") "Exe не создан"
 
-    Ok "PyInstaller onedir build complete: dist\MyVPN_GUI\"
+    Ok "PyInstaller onedir build complete: dist\IntouristVPN_GUI\"
 
     # ── Дополнительное копирование: гарантируем, что все нужные файлы ──────
-    # в dist\MyVPN_GUI\ (на случай, если spec что-то не подхватил)
-    Info "Copying dependencies into dist\MyVPN_GUI\..."
+    Info "Copying dependencies into dist\IntouristVPN_GUI\..."
 
     # wintun.dll ОБЯЗАТЕЛЬНО рядом с GUI exe
     $wintunSrc = Join-Path $Root "wintun.dll"
     if (Test-Path $wintunSrc) {
         Copy-Item $wintunSrc (Join-Path $guiDir "wintun.dll") -Force
-        Ok "wintun.dll → dist\MyVPN_GUI\"
+        Ok "wintun.dll → dist\IntouristVPN_GUI\"
     }
 
-    # myvpn.exe рядом с GUI exe
-    $myvpnSrc = Join-Path $Root "myvpn.exe"
-    if (Test-Path $myvpnSrc) {
-        Copy-Item $myvpnSrc (Join-Path $guiDir "myvpn.exe") -Force
-        Ok "myvpn.exe → dist\MyVPN_GUI\"
+    # intourist_vpn.exe рядом с GUI exe
+    $vpnExeSrc = Join-Path $Root "intourist_vpn.exe"
+    if (Test-Path $vpnExeSrc) {
+        Copy-Item $vpnExeSrc (Join-Path $guiDir "intourist_vpn.exe") -Force
+        Ok "intourist_vpn.exe → dist\IntouristVPN_GUI\"
     }
 
     # geo-файлы
@@ -218,7 +217,7 @@ if (-not $SkipPython) {
         $src = Join-Path $Root $geo
         if (Test-Path $src) {
             Copy-Item $src (Join-Path $guiDir $geo) -Force
-            Ok "$geo → dist\MyVPN_GUI\"
+            Ok "$geo → dist\IntouristVPN_GUI\"
         }
     }
 
@@ -228,8 +227,17 @@ if (-not $SkipPython) {
         $cfgDst = Join-Path $guiDir "config.json"
         if (-not (Test-Path $cfgDst)) {
             Copy-Item $cfgSrc $cfgDst
-            Ok "config.json → dist\MyVPN_GUI\"
+            Ok "config.json → dist\IntouristVPN_GUI\"
         }
+    }
+
+    # Копируем папку intourist_vps_premium_ui
+    $uiSrc = Join-Path $Root "intourist_vps_premium_ui"
+    $uiDst = Join-Path $guiDir "intourist_vps_premium_ui"
+    if (Test-Path $uiSrc) {
+        if (-not (Test-Path $uiDst)) { New-Item -ItemType Directory $uiDst | Out-Null }
+        Copy-Item "$uiSrc\*" $uiDst -Recurse -Force
+        Ok "intourist_vps_premium_ui\ → dist\IntouristVPN_GUI\"
     }
 
     # bin\ целиком
@@ -242,7 +250,7 @@ if (-not $SkipPython) {
         if (Test-Path $wintunSrc) {
             Copy-Item $wintunSrc (Join-Path $binDst "wintun.dll") -Force
         }
-        Ok "bin\ → dist\MyVPN_GUI\bin\"
+        Ok "bin\ → dist\IntouristVPN_GUI\bin\"
     }
 
     # icon.ico
@@ -253,14 +261,14 @@ if (-not $SkipPython) {
 }
 else {
     Warn "Step 3 skipped (-SkipPython)"
-    RequireFile "$Root\dist\MyVPN_GUI\MyVPN_GUI.exe" "Run without -SkipPython to build"
+    RequireFile "$Root\dist\IntouristVPN_GUI\intourist_vpn_gui.exe" "Run without -SkipPython to build"
 }
 
-# ════════════════════════════════════════════════════════════════════════════
-# ШАГ 4: Inno Setup → installer_dist\MyVPN_Setup_<version>.exe
-# ════════════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════
+# ШАГ 4: Inno Setup → installer_dist\IntouristVPN_Setup_<version>.exe
+# ════════════════════════════════════════════════════════════════
 if (-not $SkipInno) {
-    Header "4/4  Inno Setup → MyVPN_Setup_$Version.exe"
+    Header "4/4  Inno Setup → IntouristVPN_Setup_$Version.exe"
 
     # Ищем ISCC.exe в стандартных путях
     $isCandidates = @(
@@ -277,17 +285,14 @@ if (-not $SkipInno) {
 
     if (-not $iscc) {
         # Попробуем найти через PATH
-        if (-not $iscc) {
-    	# Попробуем найти через PATH
-    	$isccCmd = Get-Command "iscc" -ErrorAction SilentlyContinue
-    	if ($isccCmd) { $iscc = $isccCmd.Source }
-}
+        $isccCmd = Get-Command "iscc" -ErrorAction SilentlyContinue
+        if ($isccCmd) { $iscc = $isccCmd.Source }
     }
 
     if (-not $iscc) {
         Warn "Inno Setup (ISCC.exe) not found."
         Warn "Установите Inno Setup 6 с https://jrsoftware.org/isdownload.php"
-        Warn "Сборка без установщика завершена. Файлы в dist\MyVPN_GUI\"
+        Warn "Сборка без установщика завершена. Файлы в dist\IntouristVPN_GUI\"
     }
     else {
         Ok "ISCC: $iscc"
@@ -300,13 +305,13 @@ if (-not $SkipInno) {
         if (-not (Test-Path $outDir)) { New-Item -ItemType Directory $outDir | Out-Null }
 
         & $iscc `
-            "/DMyAppVersion=$Version" `
+            "/DIntouristAppVersion=$Version" `
             "/O$outDir" `
             $issFile
 
         if ($LASTEXITCODE -ne 0) { Fail "Inno Setup compilation failed" }
 
-        $setupExe = Join-Path $outDir "MyVPN_Setup_$Version.exe"
+        $setupExe = Join-Path $outDir "IntouristVPN_Setup_$Version.exe"
         RequireFile $setupExe
 
         $sizeMB = [Math]::Round((Get-Item $setupExe).Length / 1MB, 1)
@@ -317,27 +322,29 @@ else {
     Warn "Step 4 skipped (-SkipInno)"
 }
 
-# ════════════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════
 # Итог
-# ════════════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════
 Header "BUILD COMPLETE"
 Write-Host ""
 Write-Host "  Results:" -ForegroundColor White
 
-if (Test-Path "$Root\myvpn.exe") {
-    Write-Host "  [✓] myvpn.exe" -ForegroundColor Green
+if (Test-Path "$Root\intourist_vpn.exe") {
+    Write-Host "  [✓] intourist_vpn.exe" -ForegroundColor Green
 }
-if (Test-Path "$Root\dist\MyVPN_GUI\MyVPN_GUI.exe") {
-    Write-Host "  [✓] dist\MyVPN_GUI\MyVPN_GUI.exe" -ForegroundColor Green
+if (Test-Path "$Root\dist\IntouristVPN_GUI\intourist_vpn_gui.exe") {
+    Write-Host "  [✓] dist\IntouristVPN_GUI\intourist_vpn_gui.exe" -ForegroundColor Green
 }
-if (Test-Path "$Root\installer_dist\MyVPN_Setup_$Version.exe") {
-    Write-Host "  [✓] installer_dist\MyVPN_Setup_$Version.exe" -ForegroundColor Green
+if (Test-Path "$Root\installer_dist\IntouristVPN_Setup_$Version.exe") {
+    Write-Host "  [✓] installer_dist\IntouristVPN_Setup_$Version.exe" -ForegroundColor Green
 }
 
 Write-Host ""
 Write-Host "  Checklist:" -ForegroundColor White
 Write-Host "  [✓] приложение устанавливается одним Setup.exe" -ForegroundColor Green
-Write-Host "  [✓] после установки все файлы рядом с MyVPN_GUI.exe" -ForegroundColor Green
+Write-Host "  [✓] современный веб-интерфейс интегрирован" -ForegroundColor Green
+Write-Host "  [✓] логотип space_source.png используется" -ForegroundColor Green
+Write-Host "  [✓] после установки все файлы рядом с intourist_vpn_gui.exe" -ForegroundColor Green
 Write-Host "  [✓] wintun.dll корректно загружается (onedir + SetDllDirectory)" -ForegroundColor Green
 Write-Host "  [✓] xray запускается из абсолютного пути" -ForegroundColor Green
 Write-Host "  [✓] ярлык в меню Пуск и на рабочем столе" -ForegroundColor Green
