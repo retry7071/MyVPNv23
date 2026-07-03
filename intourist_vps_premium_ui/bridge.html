@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intourist VPS Bridge</title>
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+</head>
+<body>
+<script>
+    // This file creates a bridge between the web UI and the Python backend
+    // using Qt WebChannel
+
+    class VPNBridge {
+        constructor() {
+            this.connected = false;
+            this.currentServer = null;
+            this.servers = [];
+            this.initWebChannel();
+        }
+
+        initWebChannel() {
+            // Wait for the WebChannel to be ready
+            if (window.qt) {
+                this.setupBridge();
+            } else {
+                new QWebChannel(qt.webChannelTransport, (channel) => {
+                    window.vpnApi = channel.objects.vpnApi;
+                    this.setupBridge();
+                });
+            }
+        }
+
+        setupBridge() {
+            // Connect button handlers
+            this.connectButtons();
+            this.setupEventListeners();
+        }
+
+        connectButtons() {
+            const connectBtn = document.querySelector('.connect');
+            const disconnectBtn = document.querySelector('.disconnect');
+
+            if (connectBtn) {
+                connectBtn.addEventListener('click', () => this.handleConnect());
+            }
+
+            if (disconnectBtn) {
+                disconnectBtn.addEventListener('click', () => this.handleDisconnect());
+            }
+        }
+
+        setupEventListeners() {
+            // Server selection
+            document.querySelectorAll('.server-row').forEach((row, index) => {
+                row.addEventListener('click', () => {
+                    this.selectServer(index);
+                });
+            });
+
+            // Copy to clipboard
+            document.querySelectorAll('.key-input button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const input = btn.parentElement.querySelector('input');
+                    navigator.clipboard.writeText(input.value);
+                });
+            });
+
+            // Refresh servers
+            document.querySelector('.refresh')?.addEventListener('click', () => {
+                this.refreshServers();
+            });
+        }
+
+        selectServer(index) {
+            document.querySelectorAll('.server-row').forEach(r => r.classList.remove('active'));
+            const rows = document.querySelectorAll('.server-row');
+            if (rows[index]) {
+                rows[index].classList.add('active');
+                this.currentServer = this.servers[index] || null;
+            }
+        }
+
+        handleConnect() {
+            if (this.currentServer) {
+                console.log('Connecting to:', this.currentServer);
+                // Call Python backend
+                if (window.vpnApi && window.vpnApi.connect) {
+                    window.vpnApi.connect(JSON.stringify(this.currentServer));
+                }
+            }
+        }
+
+        handleDisconnect() {
+            console.log('Disconnecting');
+            if (window.vpnApi && window.vpnApi.disconnect) {
+                window.vpnApi.disconnect();
+            }
+        }
+
+        refreshServers() {
+            if (window.vpnApi && window.vpnApi.refreshServers) {
+                window.vpnApi.refreshServers();
+            }
+        }
+
+        updateStatus(isConnected) {
+            this.connected = isConnected;
+            const statusCard = document.querySelector('.status-card');
+            const connectBtn = document.querySelector('.connect');
+            const disconnectBtn = document.querySelector('.disconnect');
+
+            if (statusCard) {
+                statusCard.classList.toggle('is-online', isConnected);
+                const statusText = statusCard.querySelector('strong');
+                if (statusText) {
+                    statusText.textContent = isConnected ? 'подключено' : 'отключено';
+                }
+            }
+
+            if (connectBtn) connectBtn.disabled = isConnected;
+            if (disconnectBtn) disconnectBtn.disabled = !isConnected;
+        }
+
+        updateServers(serversList) {
+            this.servers = serversList;
+            const serversContainer = document.querySelector('.servers');
+            if (!serversContainer) return;
+
+            serversContainer.innerHTML = '';
+            serversList.forEach((server, index) => {
+                const row = document.createElement('div');
+                row.className = 'server-row';
+                row.innerHTML = `
+                    <span class="flag">${this.getCountryFlag(server.country)}</span>
+                    <div>
+                        <b>${server.name}</b>
+                        <small>${server.location || server.country}</small>
+                    </div>
+                    <em>${server.protocol}</em>
+                    <i class="signal"><u></u><u></u><u></u><u></u></i>
+                    <strong>${server.ping || '...'} ms</strong>
+                `;
+                row.addEventListener('click', () => this.selectServer(index));
+                serversContainer.appendChild(row);
+            });
+        }
+
+        getCountryFlag(countryCode) {
+            const flags = {
+                'RU': '🇷🇺', 'US': '🇺🇸', 'DE': '🇩🇪', 'NL': '🇳🇱', 'GB': '🇬🇧',
+                'FR': '🇫🇷', 'JP': '🇯🇵', 'SG': '🇸🇬', 'UA': '🇺🇦', 'PL': '🇵🇱',
+                'SE': '🇸🇪', 'TR': '🇹🇷', 'IR': '🇮🇷', 'FI': '🇫🇮', 'BG': '🇧🇬'
+            };
+            return flags[countryCode] || '🌍';
+        }
+
+        appendLog(message) {
+            const terminal = document.querySelector('.terminal');
+            if (!terminal) return;
+
+            const time = new Date().toLocaleTimeString('ru-RU');
+            const p = document.createElement('p');
+            p.innerHTML = `<time>[${time}]</time> <b>[INFO]</b> ${message} <span>OK</span>`;
+            terminal.appendChild(p);
+
+            // Scroll to bottom
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        updateMetrics(metrics) {
+            const metricsContainer = document.querySelector('.metrics');
+            if (!metricsContainer) return;
+
+            metricsContainer.innerHTML = `
+                <div><span>Время</span><b>${metrics.time || '00:00:00'}</b></div>
+                <div><span>Получено</span><b>${metrics.downloaded || '0 MB'}</b></div>
+                <div><span>Отправлено</span><b>${metrics.uploaded || '0 MB'}</b></div>
+                <div><span>DNS</span><b>${metrics.dns || '1.1.1.1'}</b></div>
+            `;
+        }
+    }
+
+    // Initialize the bridge when the document is ready
+    document.addEventListener('DOMContentLoaded', () => {
+        window.vpnBridge = new VPNBridge();
+    });
+</script>
+</body>
+</html>
