@@ -16,7 +16,7 @@
     <main class="app">
       <section class="hero-card">
         <div class="brand-side">
-          <img class="logo" src="images/logo-rocket.svg" alt="">
+          <img class="logo" src="images/space_source.png" alt="Intourist VPS Logo">
           <div>
             <h1>Intourist VPS</h1>
             <p>Быстрое подключение · 10+ стран на выбор</p>
@@ -156,5 +156,38 @@
       </section>
     </main>
   </div>
+
+  <script>
+    // Event listeners for interactive elements
+    document.querySelectorAll('.connect').forEach(btn => {
+      btn.addEventListener('click', () => {
+        console.log('Connect clicked');
+        // Will be connected to Python backend via QWebChannel
+      });
+    });
+
+    document.querySelectorAll('.disconnect').forEach(btn => {
+      btn.addEventListener('click', () => {
+        console.log('Disconnect clicked');
+        // Will be connected to Python backend via QWebChannel
+      });
+    });
+
+    document.querySelectorAll('.server-row').forEach(row => {
+      row.addEventListener('click', () => {
+        document.querySelectorAll('.server-row').forEach(r => r.classList.remove('active'));
+        row.classList.add('active');
+      });
+    });
+
+    // Copy to clipboard functionality
+    document.querySelectorAll('.key-input button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const input = btn.parentElement.querySelector('input');
+        navigator.clipboard.writeText(input.value);
+        console.log('Copied to clipboard');
+      });
+    });
+  </script>
 </body>
 </html>
